@@ -404,11 +404,11 @@ namespace AutoRest.CSharp.Model
                     .AppendLine("{").Indent();
                 if (this.Extensions.ContainsKey("nextLinkMethod") && (bool)this.Extensions["nextLinkMethod"])
                 {
-                    builder.AppendLine("{0} += ({0}.Contains(\"?\") ? \"&\" : \"?\") + string.Join(\"&\", _queryParameters);", variableName);
+                    builder.AppendLine("{0} += ({0}.Contains(\"?\") ? \"&\" : \"?\") + string.Join(\"&\", _queryParameters.ToArray());", variableName);
                 }
                 else
                 {
-                    builder.AppendLine("{0} += \"?\" + string.Join(\"&\", _queryParameters);", variableName);
+                    builder.AppendLine("{0} += \"?\" + string.Join(\"&\", _queryParameters.ToArray());", variableName);
                 }
 
                 builder.Outdent().AppendLine("}");

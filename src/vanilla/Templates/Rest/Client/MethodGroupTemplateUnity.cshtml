@@ -6,7 +6,10 @@ namespace @Settings.Namespace
 {
     using System.Linq;
     using System.IO;
+    using System.Text;
     using Microsoft.Rest;
+    using UnityEngine;
+	using UnityEngine.Networking;
 @foreach (var usingString in Model.Usings) {
     @:using @usingString;
 }

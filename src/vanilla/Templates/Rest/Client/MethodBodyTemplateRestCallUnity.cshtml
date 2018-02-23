@@ -14,7 +14,7 @@
     {
 @:if (@(parameter.Name) == null)
 @:{
-    @:throw new System.ArgumentNullException("@(parameter.Name)");
+    @:throw new Microsoft.Rest.ValidationException(Microsoft.Rest.ValidationRules.CannotBeNull, "@(parameter.Name)");
 @:}
 @:
     }
@@ -50,33 +50,23 @@ else
 }    
 }
 @(Model.BuildUrl("_url"))
-// Create HTTP transport objects
-var _httpRequest = new System.Net.Http.HttpRequestMessage();
-System.Net.Http.HttpResponseMessage _httpResponse = null;
 
-_httpRequest.Method = new System.Net.Http.HttpMethod("@(Model.HttpMethod.ToString().ToUpper())");
-_httpRequest.RequestUri = new System.Uri(_url);
+// Create HTTP transport objects
+var _webRequest = new UnityWebRequest(_url, "@(Model.HttpMethod.ToString().ToUpper())");
+
 // Set Headers
 @(Model.SetDefaultHeaders)
 @foreach (var parameter in Model.LogicalParameters.OfType<ParameterCs>().Where(p => p.Location == ParameterLocation.Header && !p.IsHeaderCollection && !p.IsContentTypeHeader))
 {
     if (!parameter.IsNullable())
     {
-@:if (_httpRequest.Headers.Contains("@(parameter.SerializedName)"))
-@:{
-@:    _httpRequest.Headers.Remove("@(parameter.SerializedName)");
-@:}
-@:_httpRequest.Headers.TryAddWithoutValidation("@(parameter.SerializedName)", @parameter.ModelType.ToString(Model.ClientReference, parameter.Name));
+@:_webRequest.SetRequestHeader("@(parameter.SerializedName)", @parameter.ModelType.ToString(Model.ClientReference, parameter.Name));
     }
     else
     {
 @:if (@(parameter.Name) != null)
 @:{
-@:    if (_httpRequest.Headers.Contains("@(parameter.SerializedName)"))
-@:    {
-@:        _httpRequest.Headers.Remove("@(parameter.SerializedName)");
-@:    }
-@:    _httpRequest.Headers.TryAddWithoutValidation("@(parameter.SerializedName)", @parameter.ModelType.ToString(Model.ClientReference, parameter.Name));
+@:    _webRequest.SetRequestHeader("@(parameter.SerializedName)", @parameter.ModelType.ToString(Model.ClientReference, parameter.Name));
 @:}
     }
 }
@@ -88,11 +78,7 @@ _httpRequest.RequestUri = new System.Uri(_url);
 @:    foreach (var _header in @(parameter.Name))
 @:    {
 @:        var key = "@(parameter.HeaderCollectionPrefix)" + _header.Key;
-@:        if (_httpRequest.Headers.Contains(key))
-@:        {
-@:            _httpRequest.Headers.Remove(key);
-@:        }
-@:        _httpRequest.Headers.TryAddWithoutValidation(key, _header.Value);
+@:        _webRequest.SetRequestHeader(key, _header.Value.FirstOrDefault());
 @:    }
 @:}
 }
@@ -101,11 +87,7 @@ if (customHeaders != null)
 {
     foreach(var _header in customHeaders)
     {
-        if (_httpRequest.Headers.Contains(_header.Key))
-        {
-            _httpRequest.Headers.Remove(_header.Key);
-        }
-        _httpRequest.Headers.TryAddWithoutValidation(_header.Key, _header.Value);
+        _webRequest.SetRequestHeader(_header.Key, _header.Value.FirstOrDefault());
     }
 }
 @EmptyLine
@@ -126,8 +108,8 @@ string _requestContent = null;
     <text>
 if (@(Model.RequestBody.Name) != null && @(Model.RequestBody.Name) != System.IO.Stream.Null)
 {
-    _httpRequest.Content = new System.Net.Http.StreamContent(@(Model.RequestBody.Name));
-    _httpRequest.Content.Headers.ContentType =System.Net.Http.Headers.MediaTypeHeaderValue.Parse(@(((Func<Parameter, string>)(p => p != null ? (p.Name.Value + ((p.ModelType as EnumType)?.ModelAsString == false ? ".ToSerializedValue()" : "")) : $"\"{Model.RequestContentType}\"" ))(Model.LocalParameters.FirstOrDefault(p => p.IsContentTypeHeader))));
+    _webRequest.Content = new System.Net.Http.StreamContent(@(Model.RequestBody.Name));
+    _webRequest.Content.Headers.ContentType =System.Net.Http.Headers.MediaTypeHeaderValue.Parse(@(((Func<Parameter, string>)(p => p != null ? (p.Name.Value + ((p.ModelType as EnumType)?.ModelAsString == false ? ".ToSerializedValue()" : "")) : $"\"{Model.RequestContentType}\"" ))(Model.LocalParameters.FirstOrDefault(p => p.IsContentTypeHeader))));
 }
     </text>
     }
@@ -149,8 +131,8 @@ if (@(Model.RequestBody.Name) != null && @(Model.RequestBody.Name) != System.IO.
 @:_requestContent = @(Model.RequestBody.Name).XmlSerialize( new System.Xml.Linq.XElement("@Model.RequestBody.ModelType.XmlName") ).ToString(); 
 @:_requestContent = $"<?xml version=\"1.0\" encoding=\"utf-8\" ?>\n{_requestContent}";
                 }
-@:_httpRequest.Content = new System.Net.Http.StringContent(_requestContent, System.Text.Encoding.UTF8);
-@:_httpRequest.Content.Headers.ContentType =System.Net.Http.Headers.MediaTypeHeaderValue.Parse("@(Model.RequestContentType)");
+@:_webRequest.Content = new System.Net.Http.StringContent(_requestContent, System.Text.Encoding.UTF8);
+@:_webRequest.Content.Headers.ContentType =System.Net.Http.Headers.MediaTypeHeaderValue.Parse("@(Model.RequestContentType)");
             }
             else {
 @:if(@(Model.RequestBody.Name) != null)
@@ -168,8 +150,8 @@ if (@(Model.RequestBody.Name) != null && @(Model.RequestBody.Name) != System.IO.
     @:_requestContent = @(Model.RequestBody.Name).XmlSerialize( new System.Xml.Linq.XElement("@Model.RequestBody.ModelType.XmlName") ).ToString(); 
     @:_requestContent = $"<?xml version=\"1.0\" encoding=\"utf-8\" ?>\n{_requestContent}";
                 }
-    @:_httpRequest.Content = new System.Net.Http.StringContent(_requestContent, System.Text.Encoding.UTF8);
-    @:_httpRequest.Content.Headers.ContentType =System.Net.Http.Headers.MediaTypeHeaderValue.Parse("@(Model.RequestContentType)");
+    @:_webRequest.Content = new System.Net.Http.StringContent(_requestContent, System.Text.Encoding.UTF8);
+    @:_webRequest.Content.Headers.ContentType =System.Net.Http.Headers.MediaTypeHeaderValue.Parse("@(Model.RequestContentType)");
 @:}
             }
         }
@@ -177,15 +159,16 @@ if (@(Model.RequestBody.Name) != null && @(Model.RequestBody.Name) != System.IO.
         {
             if (!Model.RequestBody.IsNullable()) {<text>
 _requestContent = Microsoft.Rest.Serialization.SafeJsonConvert.SerializeObject(@(Model.RequestBody.Name), @(Model.GetSerializationSettingsReference(Model.RequestBody.ModelType)));
-_httpRequest.Content = new System.Net.Http.StringContent(_requestContent, System.Text.Encoding.UTF8);
-_httpRequest.Content.Headers.ContentType =System.Net.Http.Headers.MediaTypeHeaderValue.Parse("@(Model.RequestContentType)");</text>
+_webRequest.Content = new System.Net.Http.StringContent(_requestContent, System.Text.Encoding.UTF8);
+_webRequest.Content.Headers.ContentType =System.Net.Http.Headers.MediaTypeHeaderValue.Parse("@(Model.RequestContentType)");</text>
             }
             else {<text>
 if(@(Model.RequestBody.Name) != null)
 {
     _requestContent = Microsoft.Rest.Serialization.SafeJsonConvert.SerializeObject(@(Model.RequestBody.Name), @(Model.GetSerializationSettingsReference(Model.RequestBody.ModelType)));
-    _httpRequest.Content = new System.Net.Http.StringContent(_requestContent, System.Text.Encoding.UTF8);
-    _httpRequest.Content.Headers.ContentType =System.Net.Http.Headers.MediaTypeHeaderValue.Parse("@(Model.RequestContentType)");
+    byte[] bodyRaw = Encoding.UTF8.GetBytes(_requestContent);
+    _webRequest.uploadHandler = (UploadHandler)new UploadHandlerRaw(bodyRaw);
+    _webRequest.SetRequestHeader("Content-Type", "@(Model.RequestContentType)");
 }</text>
             }
         }
@@ -223,7 +206,7 @@ else if (Model.LogicalParameters.Any(p => p.Location == ParameterLocation.FormDa
     @:_multiPartContent.Add(@(localParam), "@(parameter.SerializedName)");
 @:}
     }
-@:_httpRequest.Content = _multiPartContent;
+@:_webRequest.Content = _multiPartContent;
     }
     else
     {
@@ -236,7 +219,7 @@ else if (Model.LogicalParameters.Any(p => p.Location == ParameterLocation.FormDa
 @:}
     }
 @:var _formContent = new System.Net.Http.FormUrlEncodedContent(values);
-@:_httpRequest.Content = _formContent;
+@:_webRequest.Content = _formContent;
     }
 }
 
@@ -247,7 +230,7 @@ else if (Model.LogicalParameters.Any(p => p.Location == ParameterLocation.FormDa
 if (@(Model.ClientReference).Credentials != null)
 {
     cancellationToken.ThrowIfCancellationRequested();
-    await @(Model.ClientReference).Credentials.ProcessHttpRequestAsync(_httpRequest, cancellationToken).ConfigureAwait(false);
+    await @(Model.ClientReference).Credentials.ProcessHttpRequestAsync(_webRequest, cancellationToken).ConfigureAwait(false);
 }
     </text>
 }
@@ -257,11 +240,11 @@ if (@(Model.ClientReference).Credentials != null)
 cancellationToken.ThrowIfCancellationRequested();
 @if (Model.ReturnType.Body.IsPrimaryType(KnownPrimaryType.Stream) || Model.HttpMethod == HttpMethod.Head)
 {
-@:_httpResponse = await @(Model.ClientReference).HttpClient.SendAsync(_httpRequest, System.Net.Http.HttpCompletionOption.ResponseHeadersRead, cancellationToken).ConfigureAwait(false);
+@:_httpResponse = await @(Model.ClientReference).HttpClient.SendAsync(_webRequest, System.Net.Http.HttpCompletionOption.ResponseHeadersRead, cancellationToken).ConfigureAwait(false);
 }
 else
 {
-@:_httpResponse = await @(Model.ClientReference).HttpClient.SendAsync(_httpRequest, cancellationToken).ConfigureAwait(false);
+@:_httpResponse = await @(Model.ClientReference).HttpClient.SendAsync(_webRequest, cancellationToken).ConfigureAwait(false);
 }
 
 System.Net.HttpStatusCode _statusCode = _httpResponse.StatusCode;
@@ -306,11 +289,11 @@ else
     @:}
 }
 
-    ex.Request = new Microsoft.Rest.HttpRequestMessageWrapper(_httpRequest, _requestContent);
+    ex.Request = new Microsoft.Rest.HttpRequestMessageWrapper(_webRequest, _requestContent);
     ex.Response = new Microsoft.Rest.HttpResponseMessageWrapper(_httpResponse, _responseContent);
     @(Model.InitializeException)
 
-    _httpRequest.Dispose();
+    _webRequest.Dispose();
     if (_httpResponse != null)
     {
         _httpResponse.Dispose();
@@ -320,7 +303,7 @@ else
 
 // Create Result
 var _result = new @(Model.OperationResponseReturnTypeString)();
-_result.Request = _httpRequest;
+_result.Request = _webRequest;
 _result.Response = _httpResponse;
 @(Model.InitializeResponseBody)
 
@@ -361,7 +344,7 @@ if ((int)_statusCode == @MethodCs.GetStatusCodeReference(responsePair.Key))
     }
     catch (Newtonsoft.Json.JsonException ex)
     {
-        _httpRequest.Dispose();
+        _webRequest.Dispose();
         if (_httpResponse != null)
         {
             _httpResponse.Dispose();
@@ -404,7 +387,7 @@ if ((int)_statusCode == @MethodCs.GetStatusCodeReference(responsePair.Key))
 @:}
 @:catch (Newtonsoft.Json.JsonException ex)
 @:{
-@:    _httpRequest.Dispose();
+@:    _webRequest.Dispose();
 @:    if (_httpResponse != null)
 @:    {
 @:        _httpResponse.Dispose();
@@ -434,7 +417,7 @@ if ((int)_statusCode == @MethodCs.GetStatusCodeReference(responsePair.Key))
 @:}
 @:catch (Newtonsoft.Json.JsonException ex)
 @:{
-@:    _httpRequest.Dispose();
+@:    _webRequest.Dispose();
 @:    if (_httpResponse != null)
 @:    {
 @:        _httpResponse.Dispose();

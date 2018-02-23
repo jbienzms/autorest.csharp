@@ -22,7 +22,7 @@ namespace AutoRest.CSharp
 
                 // set code model implementations our own implementations 
                 new Factory<CodeModel, CodeModelCs>(),
-                new Factory<Method, MethodCs>(),
+                new Factory<Method, MethodCsUnity>(),
                 new Factory<CompositeType, CompositeTypeCs>(),
                 new Factory<Property, PropertyCs>(),
                 new Factory<Parameter, ParameterCs>(),

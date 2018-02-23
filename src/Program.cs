@@ -18,9 +18,11 @@ namespace AutoRest.CSharp
         public static IAnyPlugin GetPlugin(string generator, bool azure, bool fluent)
         {
             if (generator == "jsonrpcclient") return new AutoRest.CSharp.Azure.JsonRpcClient.PluginCsa();
+            if (generator == "unityclient") return new AutoRest.CSharp.PluginCsUnity();
             if (fluent) return new AutoRest.CSharp.Azure.Fluent.PluginCsaf();
             if (azure) return new AutoRest.CSharp.Azure.PluginCsa();
-            return new AutoRest.CSharp.PluginCs();
+            // HACK: return new AutoRest.CSharp.PluginCs();
+            return new AutoRest.CSharp.PluginCsUnity();
         }
     }
 
@@ -30,7 +32,7 @@ namespace AutoRest.CSharp
         {
             if(args != null && args.Length > 0 && args[0] == "--server") {
                 var connection = new Connection(Console.OpenStandardOutput(), Console.OpenStandardInput());
-                connection.Dispatch<IEnumerable<string>>("GetPluginNames", async () => new []{ "jsonrpcclient", "csharp", "csharp-simplifier" });
+                connection.Dispatch<IEnumerable<string>>("GetPluginNames", async () => new []{ "jsonrpcclient", "csharp", "csharp-simplifier", "unityclient" });
                 connection.Dispatch<string, string, bool>("Process", (plugin, sessionId) => new Program(connection, plugin, sessionId).Process());
                 connection.DispatchNotification("Shutdown", connection.Stop);
 
